@@ -1,0 +1,43 @@
+name: DevSecOps Privacy-First Pipeline
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality-and-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install flake8 bandit pytest
+
+      - name: Linting (Quality Gate)
+        # Prevents technical debt and enforces style consistency
+        run: flake8 src/
+
+      - name: SAST Security Scan (Bandit)
+        # Detects code-level vulnerabilities like insecure functions
+        run: bandit -r src/
+
+      - name: SCA Dependency Audit (Trivy)
+        # Prevents shipping vulnerable third-party libraries
+        uses: aquasecurity/trivy-action@0.18.0
+        with:
+          scan-type: 'fs'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Unit Tests (Mocked)
+        # Validates logic without the latency of real LLM calls
+        run: pytest tests/unit
