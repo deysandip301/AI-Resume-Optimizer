@@ -40,4 +40,4 @@ jobs:
 
       - name: Unit Tests (Mocked)
         # Validates logic without the latency of real LLM calls
-        run: pytest tests/unit
+        run: pytest tests/
