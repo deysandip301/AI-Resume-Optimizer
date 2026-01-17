@@ -36,29 +36,29 @@ OPERATOR_CONFIG: Dict[str, OperatorConfig] = {
 
 def mask_pii(text: str, language: str = "en") -> str:
     """Mask PII in text using Microsoft Presidio.
-    
+
     Args:
         text: Input text containing potential PII.
         language: Language code for NER (default: 'en').
-        
+
     Returns:
         Anonymized text with PII replaced by tokens.
-        
+
     Raises:
         ValueError: If text is empty or None.
     """
     if not text or not text.strip():
         raise ValueError("Input text cannot be empty")
-        
+
     analyzer, anonymizer = _get_engines()
-    
+
     # 1. Identify PII (Names, Emails, Phones)
     results = analyzer.analyze(
-        text=text, 
-        entities=SUPPORTED_ENTITIES, 
+        text=text,
+        entities=SUPPORTED_ENTITIES,
         language=language
     )
-    
+
     if results:
         logger.debug(f"Detected {len(results)} PII entities")
 
@@ -68,5 +68,5 @@ def mask_pii(text: str, language: str = "en") -> str:
         analyzer_results=results,
         operators=OPERATOR_CONFIG
     )
-    
+
     return anonymized_result.text

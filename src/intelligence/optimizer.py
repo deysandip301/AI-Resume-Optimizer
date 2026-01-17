@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 class ResumeOptimizer:
     """Optimizes resume content using semantic analysis and local LLM."""
-    
+
     DEFAULT_MODEL = "llama3:8b"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-    
+
     def __init__(self, model_name: Optional[str] = None):
         """Initialize the optimizer with embedding and LLM models.
-        
+
         Args:
             model_name: Ollama model name. Defaults to llama3:8b.
         """
@@ -27,48 +27,48 @@ class ResumeOptimizer:
 
     def analyze_skill_gap(self, resume_text: str, jd_text: str) -> float:
         """Identifies missing semantic concepts between resume and JD.
-        
+
         Args:
             resume_text: The candidate's resume text.
             jd_text: The job description text.
-            
+
         Returns:
             Cosine similarity score (0-1). Lower = larger skill gap.
         """
         if not resume_text.strip() or not jd_text.strip():
             raise ValueError("Resume and job description text cannot be empty")
-            
+
         resume_emb = self.embedder.encode(resume_text, convert_to_tensor=True)
         jd_emb = self.embedder.encode(jd_text, convert_to_tensor=True)
-        
+
         similarity = util.cos_sim(resume_emb, jd_emb)
         return float(similarity.item())
 
     def optimize_bullet_point(
-        self, 
-        bullet: str, 
-        jd_context: str, 
+        self,
+        bullet: str,
+        jd_context: str,
         keywords: List[str]
     ) -> str:
         """Rewrite a bullet point using local LLM to align with job description.
-        
+
         Args:
             bullet: Original bullet point text.
             jd_context: Relevant job description context.
             keywords: Target keywords to incorporate.
-            
+
         Returns:
             Optimized bullet point text.
-            
+
         Raises:
             ConnectionError: If Ollama service is unavailable.
             RuntimeError: If LLM inference fails.
         """
         if not bullet.strip():
             raise ValueError("Bullet point cannot be empty")
-            
+
         keywords_str = ", ".join(keywords) if keywords else "None specified"
-        
+
         prompt = f"""Role: Expert Executive Resume Writer
 Task: Rewrite the following bullet point to better align with the job description.
 Target Keywords: {keywords_str}

@@ -20,7 +20,7 @@ app = FastAPI(
 class SanitizeRequest(BaseModel):
     """Request model for resume sanitization."""
     resume_text: str = Field(
-        ..., 
+        ...,
         min_length=10,
         description="Raw resume text to sanitize"
     )
@@ -59,7 +59,7 @@ async def sanitize_input(request: SanitizeRequest) -> SanitizeResponse:
 
         # 2. Sanitization through the PII Guardian
         sanitized_text = mask_pii(request.resume_text)
-        
+
         logger.info(f"Successfully sanitized resume, session: {session_id[:8]}...")
 
         return SanitizeResponse(
@@ -69,13 +69,13 @@ async def sanitize_input(request: SanitizeRequest) -> SanitizeResponse:
     except ValueError as e:
         logger.warning(f"Validation error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
         logger.error(f"Sanitization failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during sanitization"
         )
 

@@ -1,4 +1,4 @@
-import pytest
+"""Privacy Guardian test suite."""
 from src.privacy.guardian import mask_pii
 
 
