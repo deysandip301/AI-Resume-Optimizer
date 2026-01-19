@@ -36,15 +36,23 @@ jobs:
       - name: Update Deployment Image
         # WHY: Use local image instead of DockerHub for testing
         run: |
-          sed -i 's|image: .*/ats-matcher:.*|image: ats-matcher:local|' k8s/deployment.yaml
+          sed -i 's|image: .*ats-matcher.*|image: ats-matcher:local|' k8s/deployment.yaml
           sed -i 's|imagePullPolicy: Always|imagePullPolicy: Never|' k8s/deployment.yaml
+          echo "Updated deployment.yaml:"
+          cat k8s/deployment.yaml
 
       - name: Deploy to Kubernetes
         # WHY: Applies deployment and service manifests to Kind cluster
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
-          kubectl rollout status deployment/ats-matcher --timeout=120s
+          kubectl rollout status deployment/ats-matcher --timeout=180s || {
+            echo "=== Deployment Failed - Debug Info ==="
+            kubectl get pods
+            kubectl describe pods
+            kubectl logs -l app=ats-matcher --tail=50 || true
+            exit 1
+          }
 
       - name: Verify Deployment
         # WHY: Confirms pods are running correctly
