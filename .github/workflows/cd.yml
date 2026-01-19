@@ -5,54 +5,42 @@ on:
     types: [completed]
     branches: [main]
 
-env:
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
-  GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
 jobs:
-  # Deploy to GKE if secrets are configured
-  deploy-gke:
-    name: Deploy to GKE (asia-south1)
+  # Deploy to DigitalOcean Kubernetes
+  deploy-digitalocean:
+    name: Deploy to DigitalOcean (Bangalore)
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && vars.USE_GKE == 'true' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      - name: Login to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
 
-      - name: Configure Docker for GCR
-        run: gcloud auth configure-docker --quiet
-
-      - name: Build and Push to GCR
+      - name: Build and Push Image
         run: |
-          IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/ats-matcher
+          IMAGE=${{ secrets.DIGITALOCEAN_REGISTRY }}/ats-matcher
           docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
-      - name: Get GKE Credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ secrets.GKE_CLUSTER }}
-          location: ${{ secrets.GKE_ZONE }}
+      - name: Get Kubernetes Credentials
+        run: |
+          doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
 
       - name: Update Deployment Image
         run: |
-          IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/ats-matcher
+          IMAGE=${{ secrets.DIGITALOCEAN_REGISTRY }}/ats-matcher
           sed -i "s|image: .*ats-matcher.*|image: $IMAGE:${{ github.sha }}|" k8s/deployment.yaml
           cat k8s/deployment.yaml
 
-      - name: Deploy to GKE
+      - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
@@ -87,108 +75,3 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"text": "python developer", "keywords": ["python", "aws"]}' | jq .
           echo "✅ DAST completed!"
-
-  # Fallback: Deploy to Kind if GKE not configured
-  deploy-kind:
-    name: Deploy to Kind (CI Testing)
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && vars.USE_GKE != 'true' }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker Image
-        # WHY: Build image locally for Kind cluster
-        run: |
-          docker build -t ats-matcher:local .
-
-      - name: Create Kind Cluster
-        # WHY: Spins up a real K8s cluster inside the runner
-        uses: helm/kind-action@v1.10.0
-        with:
-          cluster_name: ats-cluster
-
-      - name: Load Image into Kind
-        # WHY: Kind needs the image loaded since it can't pull from local Docker
-        run: |
-          kind load docker-image ats-matcher:local --name ats-cluster
-
-      - name: Update Deployment Image
-        # WHY: Use local image instead of DockerHub for testing
-        run: |
-          sed -i 's|image: .*ats-matcher.*|image: ats-matcher:local|' k8s/deployment.yaml
-          sed -i 's|imagePullPolicy: Always|imagePullPolicy: Never|' k8s/deployment.yaml
-          echo "Updated deployment.yaml:"
-          cat k8s/deployment.yaml
-
-      - name: Deploy to Kubernetes
-        # WHY: Applies deployment and service manifests to Kind cluster
-        run: |
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
-          kubectl rollout status deployment/ats-matcher --timeout=180s || {
-            echo "=== Deployment Failed - Debug Info ==="
-            kubectl get pods
-            kubectl describe pods
-            kubectl logs -l app=ats-matcher --tail=50 || true
-            exit 1
-          }
-
-      - name: Verify Deployment
-        # WHY: Confirms pods are running correctly
-        run: |
-          echo "=== Pods ==="
-          kubectl get pods -o wide
-          echo "=== Services ==="
-          kubectl get services
-          echo "=== Deployment ==="
-          kubectl describe deployment ats-matcher
-
-      - name: Port Forward & Health Check
-        # WHY: Exposes the service for DAST testing
-        run: |
-          kubectl port-forward service/ats-matcher-service 8000:80 &
-          sleep 5
-          echo "Testing health endpoint..."
-          curl -f http://localhost:8000/health
-          echo ""
-          echo "✅ Health check passed!"
-
-      - name: DAST - API Security Testing
-        # WHY: Tests running application for runtime vulnerabilities
-        run: |
-          echo "=== DAST Security Scan ==="
-          
-          # Test 1: Health endpoint
-          echo "Testing /health endpoint..."
-          curl -s http://localhost:8000/health | jq .
-          
-          # Test 2: API with sample text (no file upload in DAST)
-          echo ""
-          echo "Testing /analyze/text endpoint..."
-          curl -s -X POST http://localhost:8000/analyze/text \
-            -H "Content-Type: application/json" \
-            -d '{"text": "python developer with aws experience", "keywords": ["python", "aws", "docker"]}' | jq .
-          
-          # Test 3: Invalid input handling (security test)
-          echo ""
-          echo "Testing invalid input handling..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/analyze/text \
-            -H "Content-Type: application/json" \
-            -d '{"text": "", "keywords": []}')
-          if [ "$STATUS" -ge 400 ] && [ "$STATUS" -lt 500 ]; then
-            echo "✅ Invalid input properly rejected with status $STATUS"
-          else
-            echo "⚠️ Unexpected status: $STATUS"
-          fi
-          
-          echo ""
-          echo "✅ DAST tests completed!"
-
-      - name: Cleanup Kind Cluster
-        if: always()
-        run: |
-          kind delete cluster --name ats-cluster || true
