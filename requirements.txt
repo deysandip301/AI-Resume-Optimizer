@@ -1,8 +1,7 @@
 # Core API
-fastapi==0.115.0
-uvicorn==0.27.0
+fastapi>=0.115.5
+uvicorn>=0.27.0
 pydantic>=2.0.0
-starlette>=0.40.0
 
 # Privacy & PII Detection
 presidio-analyzer==2.2.351
