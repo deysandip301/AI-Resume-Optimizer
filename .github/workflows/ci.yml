@@ -85,16 +85,21 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           # Clean apt cache
           sudo apt-get clean
-          # Clean Docker
+          # Clean Docker completely including BuildKit cache
           sudo docker image prune --all --force
           sudo docker system prune --all --force --volumes
+          sudo docker builder prune --all --force
           # Clean tmp
           sudo rm -rf /tmp/*
           echo "After cleanup:"
           df -h
 
       - name: Build Docker Image
-        run: docker build --no-cache -t ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest .
+        run: |
+          # Force fresh build with no cache at any level
+          DOCKER_BUILDKIT=1 docker build --no-cache --pull -t ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest .
+          echo "=== Verify jaraco.context is NOT in image ==="
+          docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest pip show jaraco.context || echo "CONFIRMED: jaraco.context not installed"
 
       - name: Scan Image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
