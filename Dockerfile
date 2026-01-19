@@ -15,14 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies with security constraints
 COPY requirements.txt constraints.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
-# Download spaCy model for Presidio NER (install directly from URL for reliability)
-# Apply constraints here too, then force upgrade jaraco.context to ensure security
-RUN pip install --no-cache-dir -c constraints.txt https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl && \
-    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0" && \
-    python -c "import jaraco.context; print(f'jaraco.context version: {jaraco.context.__version__}')"
+# Set PIP_CONSTRAINT globally - applies to ALL pip installs automatically
+ENV PIP_CONSTRAINT=/app/constraints.txt
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Download spaCy model for Presidio NER (constraints apply automatically via PIP_CONSTRAINT)
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
 
 # Production stage
 FROM python:3.10-slim
