@@ -2,15 +2,16 @@ import streamlit as st
 import requests
 import fitz  # PyMuPDF
 
-# Page config
-st.set_page_config(
-    page_title="ATS Keyword Matcher",
-    page_icon="📝",
-    layout="centered"
-)
 
-# Custom CSS for better styling
-st.markdown("""
+def _setup_page():
+    """Configure page settings and styling."""
+    st.set_page_config(
+        page_title="ATS Keyword Matcher",
+        page_icon="📝",
+        layout="centered"
+    )
+
+    st.markdown("""
 <style>
     .main-header {
         text-align: center;
@@ -37,14 +38,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header
-st.markdown("<h1 class='main-header'>📝 ATS Keyword Matcher</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>Check how well your resume matches the job description</p>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>📝 ATS Keyword Matcher</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; color: gray;'>"
+        "Check how well your resume matches the job description</p>",
+        unsafe_allow_html=True
+    )
+    st.divider()
 
-st.divider()
-
-# API URL - uses localhost since both run in same container
-API_URL = "http://localhost:8000"
 
 def extract_text_from_pdf(pdf_file) -> str:
     """Extract text from uploaded PDF file."""
@@ -54,9 +55,9 @@ def extract_text_from_pdf(pdf_file) -> str:
             text += page.get_text()
     return text.strip()
 
+
 def extract_keywords_from_jd(jd_text: str) -> list:
     """Extract keywords from JD (simple word extraction)."""
-    # Common tech keywords to look for
     common_keywords = [
         "python", "java", "javascript", "typescript", "react", "angular", "vue",
         "node", "nodejs", "express", "django", "flask", "fastapi", "spring",
@@ -67,14 +68,21 @@ def extract_keywords_from_jd(jd_text: str) -> list:
         "machine learning", "ml", "ai", "data science", "pandas", "numpy",
         "html", "css", "tailwind", "bootstrap", "figma", "ui/ux"
     ]
-    
+
     jd_lower = jd_text.lower()
     found_keywords = []
     for keyword in common_keywords:
         if keyword in jd_lower:
             found_keywords.append(keyword)
-    
+
     return found_keywords if found_keywords else jd_text.replace(",", " ").split()[:20]
+
+
+# API URL - uses localhost since both run in same container
+API_URL = "http://localhost:8000"
+
+# Initialize page
+_setup_page()
 
 # Resume Upload Section
 st.subheader("📄 Upload Your Resume")
@@ -125,31 +133,31 @@ if analyze_button:
                 # Extract resume text
                 resume_file.seek(0)  # Reset file pointer
                 resume_text = extract_text_from_pdf(resume_file)
-                
+
                 # Extract keywords from JD
                 keywords = extract_keywords_from_jd(jd_text)
-                
-                # Call backend API
+
+                # Call backend API (uses form data, not JSON)
                 response = requests.post(
                     f"{API_URL}/analyze/text",
-                    json={
-                        "text": resume_text,
-                        "keywords": keywords
+                    data={
+                        "resume_text": resume_text,
+                        "job_description": jd_text
                     },
                     timeout=30
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     score = data.get("score", 0)
                     matched = data.get("matched_keywords", [])
                     missing = data.get("missing_keywords", [])
                     label = data.get("score_label", "")
-                    
+
                     # Display Score
                     st.divider()
                     st.subheader("📊 Results")
-                    
+
                     # Score with color coding
                     if score >= 75:
                         score_class = "score-excellent"
@@ -160,17 +168,17 @@ if analyze_button:
                     else:
                         score_class = "score-poor"
                         emoji = "📈"
-                    
+
                     st.markdown(f"""
                     <div class="score-box {score_class}">
                         <h1>{emoji} {score}%</h1>
                         <h3>{label}</h3>
                     </div>
                     """, unsafe_allow_html=True)
-                    
+
                     # Keywords breakdown
                     col1, col2 = st.columns(2)
-                    
+
                     with col1:
                         st.markdown("### ✅ Matched Keywords")
                         if matched:
@@ -178,7 +186,7 @@ if analyze_button:
                                 st.markdown(f"<span class='keyword-tag matched'>✓ {kw}</span>", unsafe_allow_html=True)
                         else:
                             st.write("No keywords matched")
-                    
+
                     with col2:
                         st.markdown("### ❌ Missing Keywords")
                         if missing:
@@ -186,16 +194,16 @@ if analyze_button:
                                 st.markdown(f"<span class='keyword-tag missing'>✗ {kw}</span>", unsafe_allow_html=True)
                         else:
                             st.write("All keywords matched! 🎉")
-                    
+
                     # Recommendations
                     if missing:
                         st.divider()
                         st.subheader("💡 Recommendations")
                         st.info(f"Consider adding these keywords to your resume: **{', '.join(missing[:5])}**")
-                
+
                 else:
                     st.error(f"API Error: {response.status_code} - {response.text}")
-                    
+
             except requests.exceptions.ConnectionError:
                 st.error(f"❌ Cannot connect to API at {API_URL}. Make sure the backend is running.")
             except Exception as e:
