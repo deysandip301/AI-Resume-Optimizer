@@ -3,10 +3,11 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies and fix security vulnerabilities
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0"
 
 # Copy application source
 COPY src/ ./src/
