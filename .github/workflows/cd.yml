@@ -59,7 +59,7 @@ jobs:
       - name: Port Forward & Health Check
         # WHY: Exposes the service for DAST testing
         run: |
-          kubectl port-forward service/ats-matcher 8000:80 &
+          kubectl port-forward service/ats-matcher-service 8000:80 &
           sleep 5
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/health
