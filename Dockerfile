@@ -7,13 +7,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    echo "=== Before upgrade ===" && \
-    pip show jaraco.context || echo "Not installed" && \
-    pip uninstall -y jaraco.context || true && \
-    pip install --no-cache-dir "jaraco.context>=6.1.0" && \
-    echo "=== After upgrade ===" && \
-    pip show jaraco.context && \
-    python -c "import jaraco.context; print(f'Version: {jaraco.context.__version__}')"
+    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0"
 
 # Copy application source
 COPY src/ ./src/
