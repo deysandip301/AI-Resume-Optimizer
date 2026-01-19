@@ -6,63 +6,98 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
-    name: Deploy to Kubernetes
+  deploy-and-test:
+    name: Deploy to Kind & Run DAST
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Configure Kubernetes Context
-        # WHY: Connects to your K8s cluster for deployment
+      - name: Build Docker Image
+        # WHY: Build image locally for Kind cluster
         run: |
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
-          export KUBECONFIG=kubeconfig.yaml
+          docker build -t ats-matcher:local .
+
+      - name: Create Kind Cluster
+        # WHY: Spins up a real K8s cluster inside the runner
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: ats-cluster
+
+      - name: Load Image into Kind
+        # WHY: Kind needs the image loaded since it can't pull from local Docker
+        run: |
+          kind load docker-image ats-matcher:local --name ats-cluster
+
+      - name: Update Deployment Image
+        # WHY: Use local image instead of DockerHub for testing
+        run: |
+          sed -i 's|image: .*/ats-matcher:.*|image: ats-matcher:local|' k8s/deployment.yaml
+          sed -i 's|imagePullPolicy: Always|imagePullPolicy: Never|' k8s/deployment.yaml
 
       - name: Deploy to Kubernetes
-        # WHY: Applies deployment and service manifests to the cluster
+        # WHY: Applies deployment and service manifests to Kind cluster
         run: |
-          export KUBECONFIG=kubeconfig.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           kubectl rollout status deployment/ats-matcher --timeout=120s
 
-      - name: Cleanup
-        if: always()
-        run: rm -f kubeconfig.yaml
-
-  dast:
-    name: Dynamic Application Security Testing
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for Deployment
-        run: sleep 30
-
-      - name: DAST Health Check
-        # WHY: Verifies the deployed application is responding
+      - name: Verify Deployment
+        # WHY: Confirms pods are running correctly
         run: |
-          # Replace with your actual service URL
-          SERVICE_URL="${{ secrets.SERVICE_URL }}"
-          if [ -z "$SERVICE_URL" ]; then
-            echo "SERVICE_URL not set, using placeholder"
-            SERVICE_URL="http://localhost:8000"
-          fi
-          echo "Testing endpoint: $SERVICE_URL/health"
-          # This would be replaced with actual OWASP ZAP or similar in production
-          curl -f "$SERVICE_URL/health" || echo "DAST: Endpoint test (placeholder for ZAP scan)"
+          echo "=== Pods ==="
+          kubectl get pods -o wide
+          echo "=== Services ==="
+          kubectl get services
+          echo "=== Deployment ==="
+          kubectl describe deployment ats-matcher
 
-      - name: DAST Security Scan (Placeholder)
-        # WHY: Scans running application for runtime vulnerabilities
-        # In production, use: zaproxy/action-full-scan@v0.7.0
+      - name: Port Forward & Health Check
+        # WHY: Exposes the service for DAST testing
+        run: |
+          kubectl port-forward service/ats-matcher 8000:80 &
+          sleep 5
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8000/health
+          echo ""
+          echo "✅ Health check passed!"
+
+      - name: DAST - API Security Testing
+        # WHY: Tests running application for runtime vulnerabilities
         run: |
           echo "=== DAST Security Scan ==="
-          echo "In production, this step would run OWASP ZAP against the live endpoint."
-          echo "Example command: zap-full-scan.py -t \$SERVICE_URL -r report.html"
-          echo "For SST demo purposes, this is a placeholder showing DAST integration point."
+          
+          # Test 1: Health endpoint
+          echo "Testing /health endpoint..."
+          curl -s http://localhost:8000/health | jq .
+          
+          # Test 2: API with sample text (no file upload in DAST)
+          echo ""
+          echo "Testing /analyze/text endpoint..."
+          curl -s -X POST http://localhost:8000/analyze/text \
+            -H "Content-Type: application/json" \
+            -d '{"text": "python developer with aws experience", "keywords": ["python", "aws", "docker"]}' | jq .
+          
+          # Test 3: Invalid input handling (security test)
+          echo ""
+          echo "Testing invalid input handling..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/analyze/text \
+            -H "Content-Type: application/json" \
+            -d '{"text": "", "keywords": []}')
+          if [ "$STATUS" -ge 400 ] && [ "$STATUS" -lt 500 ]; then
+            echo "✅ Invalid input properly rejected with status $STATUS"
+          else
+            echo "⚠️ Unexpected status: $STATUS"
+          fi
+          
+          echo ""
+          echo "✅ DAST tests completed!"
+
+      - name: Cleanup Kind Cluster
+        if: always()
+        run: |
+          kind delete cluster --name ats-cluster || true
