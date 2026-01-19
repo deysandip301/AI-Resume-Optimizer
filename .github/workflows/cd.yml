@@ -34,6 +34,11 @@ jobs:
         run: |
           doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
 
+      - name: Grant Cluster Access to Registry
+        run: |
+          # Connect the K8s cluster to the container registry
+          doctl kubernetes cluster registry add ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }} || true
+
       - name: Update Deployment Image
         run: |
           IMAGE=${{ secrets.DIGITALOCEAN_REGISTRY }}/ats-matcher
