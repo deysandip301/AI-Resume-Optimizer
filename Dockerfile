@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source
 COPY src/ ./src/
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
+# Create non-root user for security (UID 1000 to match K8s securityContext)
+RUN useradd --create-home --shell /bin/bash --uid 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
