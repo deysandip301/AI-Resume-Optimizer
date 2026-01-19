@@ -92,14 +92,21 @@ jobs:
         run: |
           if [ -z "$SERVICE_URL" ]; then
             echo "Using port-forward..."
-            kubectl port-forward service/ats-matcher-service 8000:80 &
+            kubectl port-forward service/ats-matcher-service 8080:80 8000:8000 &
             sleep 5
-            SERVICE_URL="http://localhost:8000"
+            SERVICE_URL="http://localhost:8080"
+            API_URL="http://localhost:8000"
+          else
+            API_URL="$SERVICE_URL:8000"
           fi
           
-          echo "=== DAST against $SERVICE_URL ==="
-          curl -sf "$SERVICE_URL/health" | jq .
-          curl -sf -X POST "$SERVICE_URL/analyze/text" \
+          echo "=== Testing Streamlit UI at $SERVICE_URL ==="
+          curl -sf "$SERVICE_URL" | head -20
+          
+          echo ""
+          echo "=== Testing API at $API_URL ==="
+          curl -sf "$API_URL/health" | jq .
+          curl -sf -X POST "$API_URL/analyze/text" \
             -H "Content-Type: application/json" \
             -d '{"text": "python developer", "keywords": ["python", "aws"]}' | jq .
           echo "✅ DAST completed!"
