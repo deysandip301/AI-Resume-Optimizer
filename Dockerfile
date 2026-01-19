@@ -3,11 +3,11 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies and fix security vulnerabilities
+# Install dependencies - pin secure version of transitive dep FIRST
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0"
+    pip install --no-cache-dir "jaraco.context>=6.1.0" && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY src/ ./src/
