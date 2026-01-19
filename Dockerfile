@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir "jaraco.context>=6.1.0" --upgrade
 
 # Download spaCy model for Presidio NER (install directly from URL for reliability)
 RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
