@@ -1,0 +1,5 @@
+# Security constraints - pip will enforce these minimum versions
+# for ALL packages, including transitive dependencies
+
+# CVE: GHSA-58pv-8j8x-9vj2 - Path Traversal Vulnerability
+jaraco.context>=6.1.0
