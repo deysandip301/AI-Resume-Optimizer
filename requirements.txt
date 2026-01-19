@@ -1,3 +1,6 @@
+# Security: Pin vulnerable transitive dependencies
+jaraco-context>=6.1.0
+
 # Core API
 fastapi>=0.115.0
 uvicorn>=0.27.0
