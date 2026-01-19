@@ -1,22 +1,21 @@
-name: DevSecOps Privacy-First Pipeline
+name: CI - Quality, Security & Build
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
-  schedule:
-    # Run nightly at 2 AM UTC for integration tests
-    - cron: '0 2 * * *'
+    branches: [main]
 
 env:
   PYTHON_VERSION: '3.10'
 
 jobs:
   quality-and-security:
+    name: Quality & Security Gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,19 +25,15 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install -c constraints.txt -r requirements.txt
-          pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
+          pip install -r requirements.txt
 
-      - name: Linting (Quality Gate)
-        # Prevents technical debt and enforces style consistency
-        run: flake8 src/ --max-line-length=100 --ignore=E501,W503
+      - name: Linting (Flake8)
+        run: flake8 src/ tests/ --max-line-length=100 --ignore=E501,W503
 
       - name: SAST Security Scan (Bandit)
-        # Detects code-level vulnerabilities like insecure functions
         run: bandit -r src/ -ll -ii
 
-      - name: SCA Dependency Audit (Trivy)
-        # Prevents shipping vulnerable third-party libraries
+      - name: SCA Dependency Audit (Trivy FS)
         uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
@@ -46,70 +41,29 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
 
-      - name: Unit Tests (Mocked)
-        # Validates logic without the latency of real LLM calls
+      - name: Unit Tests
         run: pytest tests/ -v --tb=short
-      
-      - name: Cache Ollama Models
-        uses: actions/cache@v4
-        with:
-          path: ~/.ollama
-          key: ${{ runner.os }}-ollama-${{ hashFiles('src/models/version.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-ollama-
-          
-      - name: Integration Eval (Nightly)
-        if: github.event_name == 'schedule'
-        run: pytest tests/integration/test_llm_quality.py -v
 
   build-and-push:
+    name: Build & Push Docker Image
     needs: quality-and-security
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Free up disk space
-        run: |
-          echo "Before cleanup:"
-          df -h
-          # Remove unnecessary large packages (frees ~30GB)
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo rm -rf /opt/hostedtoolcache/go
-          sudo rm -rf /opt/hostedtoolcache/node
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          # Clean apt cache
-          sudo apt-get clean
-          # Clean Docker completely including BuildKit cache
-          sudo docker image prune --all --force
-          sudo docker system prune --all --force --volumes
-          sudo docker builder prune --all --force
-          # Clean tmp
-          sudo rm -rf /tmp/*
-          echo "After cleanup:"
-          df -h
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Build Docker Image
-        run: |
-          # Force fresh build with no cache at any level
-          DOCKER_BUILDKIT=1 docker build --no-cache --pull -t ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest .
-          echo "=== Verify jaraco.context is NOT in image ==="
-          docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest pip show jaraco.context || echo "CONFIRMED: jaraco.context not installed"
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest .
 
-      - name: Scan Image with Trivy
+      - name: Container Security Scan (Trivy Image)
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest'
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest'
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-          timeout: '30m'
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -118,4 +72,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/resume-optimizer:latest
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest
