@@ -55,6 +55,9 @@ jobs:
   sca:
     name: SCA (Trivy FS)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       - uses: aquasecurity/trivy-action@0.28.0
