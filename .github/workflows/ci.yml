@@ -63,10 +63,9 @@ jobs:
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-          format: 'table'
-      - name: Generate Trivy HTML Report
-        run: >-
-          trivy fs --format template --template "@contrib/html.tpl" -o trivy-report.html .
+          format: 'template'
+          template: "@$HOME/.local/bin/trivy-bin/contrib/html.tpl"
+          output: 'trivy-report.html'
       - name: Upload SCA Report
         uses: actions/upload-artifact@v4
         with:
