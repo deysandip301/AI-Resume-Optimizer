@@ -1,38 +1,47 @@
 name: CI - Quality, Security & Build
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+
 env:
   PYTHON_VERSION: '3.10'
 
 jobs:
+
   quality-and-security:
     name: Quality & Security Gates
     runs-on: ubuntu-latest
     steps:
+      # 1. Checkout source code
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
+      # 3. Install dependencies
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      # 4. Linting (Python-specific: flake8)
       - name: Linting (Flake8)
         run: flake8 src/ tests/ --max-line-length=100 --ignore=E501,W503
 
+      # 5. SAST Security Scan (Python-specific: Bandit)
       - name: SAST Security Scan (Bandit)
         run: bandit -r src/ -ll -ii
 
+      # 6. SCA Dependency Audit (Trivy FS, works for Python projects)
       - name: SCA Dependency Audit (Trivy FS)
         uses: aquasecurity/trivy-action@0.28.0
         with:
@@ -41,8 +50,10 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
 
+      # 7. Unit Tests (Python-specific: pytest)
       - name: Unit Tests
         run: pytest tests/ -v --tb=short
+
 
   build-and-push:
     name: Build & Push Docker Image
@@ -50,12 +61,15 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
+      # 1. Checkout source code
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Build Docker image for Python app
       - name: Build Docker Image
         run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest .
 
+      # 3. Container Security Scan (Trivy Image)
       - name: Container Security Scan (Trivy Image)
         uses: aquasecurity/trivy-action@0.28.0
         with:
@@ -65,11 +79,13 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
 
+      # 4. Login to DockerHub (for pushing image)
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 5. Push Docker image to DockerHub
       - name: Push to DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest

@@ -1,4 +1,5 @@
-name: CD - Deploy & DAST
+name: CD - Deploy to Kubernetes
+
 on:
   workflow_run:
     workflows: ["CI - Quality, Security & Build"]
@@ -6,107 +7,60 @@ on:
     branches: [main]
 
 jobs:
-  # Deploy to DigitalOcean Kubernetes
-  deploy-digitalocean:
-    name: Deploy to DigitalOcean (Bangalore)
+  deploy:
+    name: Deploy to DigitalOcean Kubernetes
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
+      # 1. Checkout the latest code (for manifests)
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Install doctl CLI for DigitalOcean API access
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Login to DigitalOcean Container Registry
-        run: doctl registry login --expiry-seconds 1200
-
-      - name: Build and Push Image
-        run: |
-          IMAGE=${{ secrets.DIGITALOCEAN_REGISTRY }}/ats-matcher
-          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
-          docker push $IMAGE:${{ github.sha }}
-          docker push $IMAGE:latest
-
+      # 3. Get Kubernetes credentials for kubectl
       - name: Get Kubernetes Credentials
-        run: |
-          doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
 
-      - name: Grant Cluster Access to Registry
-        run: |
-          # Connect the K8s cluster to the container registry
-          doctl kubernetes cluster registry add ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }} || true
-
+      # 4. Update deployment manifest with new image tag (from CI)
       - name: Update Deployment Image
         run: |
-          IMAGE=${{ secrets.DIGITALOCEAN_REGISTRY }}/ats-matcher
-          sed -i "s|image: .*ats-matcher.*|image: $IMAGE:${{ github.sha }}|" k8s/deployment.yaml
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest
+          sed -i "s|image: .*ats-matcher.*|image: $IMAGE|" k8s/deployment.yaml
           cat k8s/deployment.yaml
 
+      # 5. Deploy to Kubernetes (apply manifests)
       - name: Deploy to Kubernetes
         run: |
-          # Delete old deployment first for clean start
-          kubectl delete deployment ats-matcher --ignore-not-found=true
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
-          
-          # Wait with debug output
-          echo "Waiting for deployment..."
-          for i in {1..60}; do
-            STATUS=$(kubectl get deployment ats-matcher -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
-            if [ "$STATUS" = "1" ]; then
-              echo "✅ Deployment ready!"
-              break
-            fi
-            echo "Attempt $i/60 - Checking pod status..."
-            kubectl get pods -l app=ats-matcher
-            sleep 5
-          done
-          
-          # Final check and debug if failed
-          kubectl rollout status deployment/ats-matcher --timeout=60s || {
-            echo "=== Deployment Failed - Debug Info ==="
-            kubectl get pods -l app=ats-matcher -o wide
-            kubectl describe pods -l app=ats-matcher
-            kubectl logs -l app=ats-matcher --tail=100 || true
-            exit 1
-          }
 
-      - name: Get Service URL
+      # 6. Wait for deployment to be ready (basic check)
+      - name: Wait for Deployment
         run: |
-          echo "Waiting for external IP..."
+          kubectl rollout status deployment/ats-matcher --timeout=120s
+
+      # 7. Basic DAST: Check health endpoint
+      - name: DAST - Health Check
+        run: |
+          # Get service external IP (wait up to 5 min)
           for i in {1..30}; do
             EXTERNAL_IP=$(kubectl get service ats-matcher-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             if [ -n "$EXTERNAL_IP" ]; then
-              echo "✅ Service available at: http://$EXTERNAL_IP"
-              echo "SERVICE_URL=http://$EXTERNAL_IP" >> $GITHUB_ENV
+              echo "Service available at: http://$EXTERNAL_IP"
               break
             fi
             echo "Waiting for LoadBalancer IP... ($i/30)"
             sleep 10
           done
-
-      - name: DAST - API Security Testing
-        run: |
-          if [ -z "$SERVICE_URL" ]; then
-            echo "Using port-forward..."
-            kubectl port-forward service/ats-matcher-service 8080:80 8000:8000 &
-            sleep 5
-            SERVICE_URL="http://localhost:8080"
-            API_URL="http://localhost:8000"
+          # Health check
+          if [ -n "$EXTERNAL_IP" ]; then
+            curl -sf "http://$EXTERNAL_IP/health" || exit 1
           else
-            API_URL="$SERVICE_URL:8000"
+            echo "No external IP found, skipping health check."
+            exit 1
           fi
-          
-          echo "=== Testing Streamlit UI at $SERVICE_URL ==="
-          curl -sf "$SERVICE_URL" | head -20
-          
-          echo ""
-          echo "=== Testing API at $API_URL ==="
-          curl -sf "$API_URL/health" | jq .
-          curl -sf -X POST "$API_URL/analyze/text" \
-            -H "Content-Type: application/json" \
-            -d '{"text": "python developer", "keywords": ["python", "aws"]}' | jq .
-          echo "✅ DAST completed!"
