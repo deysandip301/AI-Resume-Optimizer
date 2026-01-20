@@ -63,14 +63,12 @@ jobs:
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-          format: 'template'
-          template: "@$HOME/.local/bin/trivy-bin/contrib/html.tpl"
-          output: 'trivy-report.html'
-      - name: Upload SCA Report
-        uses: actions/upload-artifact@v4
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          name: trivy-sca-report
-          path: trivy-report.html
+          sarif_file: trivy-results.sarif
 
 
   build-and-push:
