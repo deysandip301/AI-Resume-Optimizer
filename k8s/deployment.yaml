@@ -24,7 +24,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: ats-matcher
-          image: <DOCKERHUB_USERNAME>/ats-matcher:latest
+          image: deysandip301/ats-matcher:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
