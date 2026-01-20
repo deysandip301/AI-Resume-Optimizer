@@ -24,17 +24,18 @@ GitHub Actions (CD)
 #### CI/CD Pipeline Design & Stages
 - **CI Pipeline**
   - Linting (Flake8)
-  - Security Scan (Bandit)
+  - Unit Testing (Pytest with coverage)
+  - SAST (CodeQL)
   - Dependency Scan (Trivy)
-  - Unit Testing (Pytest)
   - Docker Build & Push (main branch)
 - **CD Pipeline**
   - Deploys Docker image to Kubernetes
   - Health checks deployment
   - Manual image tag management (no sed automation)
 
+
 #### Security & Quality Controls
-- **Bandit**: Python static analysis for vulnerabilities
+- **CodeQL**: Static code analysis for vulnerabilities
 - **Trivy**: Container and dependency scanning
 - **Resource Limits**: Prevents resource exhaustion
 - **Probes**: Ensures only healthy pods serve traffic
@@ -175,17 +176,21 @@ spec:
    cd "Resume Optimizer"
    ```
 2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+  ```bash
+  pip install -r requirements.txt
+  ```
 3. Run FastAPI backend:
-   ```bash
-   uvicorn src.app:app --reload --host 0.0.0.0 --port 8000
-   ```
+  ```bash
+  uvicorn src.app:app --reload --host 0.0.0.0 --port 8000
+  ```
 4. Run Streamlit UI:
-   ```bash
-   streamlit run src/ui.py
-   ```
+  ```bash
+  streamlit run src/ui.py
+  ```
+5. (Optional) Run tests with coverage:
+  ```bash
+  pytest --cov=src --cov-report=term-missing
+  ```
 
 ### Docker
 1. Build image:
@@ -237,8 +242,8 @@ spec:
 - **Docker** (Containerization)
 - **Kubernetes** (Orchestration)
 - **GitHub Actions** (CI/CD)
-- **Bandit, Trivy** (Security)
-- **Pytest, Flake8** (Testing & Linting)
+- **CodeQL, Trivy** (Security)
+- **Pytest, Pytest-cov, Flake8** (Testing, Coverage & Linting)
 
 ---
 
@@ -270,7 +275,7 @@ Resume Optimizer/
 ---
 
 ## Testing
-- **Unit Tests**: `pytest tests/`
+- **Unit Tests with Coverage**: `pytest --cov=src --cov-report=term-missing`
 - **Linting**: `flake8 src/`
 - **Security**: `bandit -r src/`
 
