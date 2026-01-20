@@ -33,6 +33,7 @@ Production-ready, privacy-focused resume optimizer for ATS compatibility. Built 
 
 ## Secrets Configuration
 
+
 Set these GitHub repository secrets for CI/CD and deployment:
 
 | Secret Name                  | Purpose                                 |
@@ -41,7 +42,7 @@ Set these GitHub repository secrets for CI/CD and deployment:
 | DOCKERHUB_TOKEN              | Secure registry access                  |
 | DIGITALOCEAN_ACCESS_TOKEN    | DigitalOcean API access for doctl/CI    |
 | DIGITALOCEAN_CLUSTER_NAME    | Name of your DigitalOcean K8s cluster   |
-| DIGITALOCEAN_KUBECONFIG      | (Optional) Kubeconfig for cluster auth  |
+| DIGITALOCEAN_REGISTRY        | DigitalOcean Container Registry name    |
 
 **Never hardcode secrets in code or workflow files.**
 
