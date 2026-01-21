@@ -179,7 +179,10 @@ if analyze_button:
                         st.markdown("### Matched Keywords")
                         if matched:
                             for kw in matched:
-                                st.markdown(f"<span class='keyword-tag matched'>{kw}</span>", unsafe_allow_html=True)
+                                st.markdown(
+                                    f"<span class='keyword-tag matched'>{kw}</span>",
+                                    unsafe_allow_html=True
+                                )
                         else:
                             st.write("No keywords matched")
 
@@ -187,7 +190,10 @@ if analyze_button:
                         st.markdown("### Missing Keywords")
                         if missing:
                             for kw in missing:
-                                st.markdown(f"<span class='keyword-tag missing'>{kw}</span>", unsafe_allow_html=True)
+                                st.markdown(
+                                    f"<span class='keyword-tag missing'>{kw}</span>",
+                                    unsafe_allow_html=True
+                                )
                         else:
                             st.write("All keywords matched!")
 
@@ -195,7 +201,8 @@ if analyze_button:
                     if missing:
                         st.divider()
                         st.subheader("Recommendations")
-                        st.info(f"Consider adding these keywords to your resume: **{', '.join(missing[:5])}**")
+                        keywords_str = ', '.join(missing[:5])
+                        st.info(f"Consider adding these keywords: **{keywords_str}**")
 
                 else:
                     st.error(f"API Error: {response.status_code} - {response.text}")
