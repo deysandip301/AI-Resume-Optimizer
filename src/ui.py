@@ -7,7 +7,6 @@ def _setup_page():
     """Configure page settings and styling."""
     st.set_page_config(
         page_title="ATS Keyword Matcher",
-        page_icon="📝",
         layout="centered"
     )
 
@@ -38,7 +37,7 @@ def _setup_page():
 </style>
 """, unsafe_allow_html=True)
 
-    st.markdown("<h1 class='main-header'>📝 ATS Keyword Matcher</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>ATS Keyword Matcher</h1>", unsafe_allow_html=True)
     st.markdown(
         "<p style='text-align: center; color: gray;'>"
         "Check how well your resume matches the job description</p>",
@@ -85,13 +84,13 @@ API_URL = "http://localhost:8000"
 _setup_page()
 
 # Resume Upload Section
-st.subheader("📄 Upload Your Resume")
+st.subheader("Upload Your Resume")
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"], key="resume")
 
 st.divider()
 
 # JD Input Section
-st.subheader("📋 Job Description")
+st.subheader("Job Description")
 jd_input_method = st.radio(
     "How would you like to provide the Job Description?",
     ["Paste Text", "Upload File"],
@@ -119,14 +118,14 @@ st.divider()
 # Analyze Button
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
-    analyze_button = st.button("🔍 Analyze Match Score", type="primary", use_container_width=True)
+    analyze_button = st.button("Analyze Match Score", type="primary", use_container_width=True)
 
 # Analysis Logic
 if analyze_button:
     if not resume_file:
-        st.error("⚠️ Please upload your resume (PDF)")
+        st.error("Please upload your resume (PDF)")
     elif not jd_text.strip():
-        st.error("⚠️ Please provide a job description")
+        st.error("Please provide a job description")
     else:
         with st.spinner("Analyzing your resume..."):
             try:
@@ -156,22 +155,19 @@ if analyze_button:
 
                     # Display Score
                     st.divider()
-                    st.subheader("📊 Results")
+                    st.subheader("Results")
 
                     # Score with color coding
                     if score >= 75:
                         score_class = "score-excellent"
-                        emoji = "🎉"
                     elif score >= 50:
                         score_class = "score-good"
-                        emoji = "👍"
                     else:
                         score_class = "score-poor"
-                        emoji = "📈"
 
                     st.markdown(f"""
                     <div class="score-box {score_class}">
-                        <h1>{emoji} {score}%</h1>
+                        <h1>{score}%</h1>
                         <h3>{label}</h3>
                     </div>
                     """, unsafe_allow_html=True)
@@ -180,34 +176,34 @@ if analyze_button:
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        st.markdown("### ✅ Matched Keywords")
+                        st.markdown("### Matched Keywords")
                         if matched:
                             for kw in matched:
-                                st.markdown(f"<span class='keyword-tag matched'>✓ {kw}</span>", unsafe_allow_html=True)
+                                st.markdown(f"<span class='keyword-tag matched'>{kw}</span>", unsafe_allow_html=True)
                         else:
                             st.write("No keywords matched")
 
                     with col2:
-                        st.markdown("### ❌ Missing Keywords")
+                        st.markdown("### Missing Keywords")
                         if missing:
                             for kw in missing:
-                                st.markdown(f"<span class='keyword-tag missing'>✗ {kw}</span>", unsafe_allow_html=True)
+                                st.markdown(f"<span class='keyword-tag missing'>{kw}</span>", unsafe_allow_html=True)
                         else:
-                            st.write("All keywords matched! 🎉")
+                            st.write("All keywords matched!")
 
                     # Recommendations
                     if missing:
                         st.divider()
-                        st.subheader("💡 Recommendations")
+                        st.subheader("Recommendations")
                         st.info(f"Consider adding these keywords to your resume: **{', '.join(missing[:5])}**")
 
                 else:
                     st.error(f"API Error: {response.status_code} - {response.text}")
 
             except requests.exceptions.ConnectionError:
-                st.error(f"❌ Cannot connect to API at {API_URL}. Make sure the backend is running.")
+                st.error(f"Cannot connect to API at {API_URL}. Make sure the backend is running.")
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.error(f"Error: {str(e)}")
 
 # Footer
 st.divider()
