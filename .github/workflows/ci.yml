@@ -21,9 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
       - run: pip install flake8
-      - run: flake8 src/ tests/ --max-line-length=100 --ignore=E501,W503
+      - run: flake8 src/ tests/ --max-line-length=100
 
   test:
     name: Unit Tests
@@ -33,7 +32,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
       - run: pip install -r requirements.txt
       - run: pytest -v --cov=src --cov-report=term-missing
 
@@ -90,10 +88,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: |
-          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          SHA_TAG=sha-${GITHUB_SHA::7}
-          docker build -t $IMAGE:latest -t $IMAGE:$SHA_TAG .
+      - run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
       - uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest

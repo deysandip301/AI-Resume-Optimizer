@@ -6,11 +6,6 @@ metadata:
     app: ats-matcher
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1  # Allow one pod to be taken down before a new one is created
-      maxSurge: 0        # Do not create extra pods above the desired count
   selector:
     matchLabels:
       app: ats-matcher
@@ -31,13 +26,6 @@ spec:
               name: api
             - containerPort: 8501
               name: ui
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
           livenessProbe:
             httpGet:
               path: /health
@@ -52,6 +40,3 @@ spec:
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL

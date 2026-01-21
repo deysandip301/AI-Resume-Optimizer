@@ -26,25 +26,18 @@ jobs:
       - name: Get Kubernetes Credentials
         run: doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
 
-      # 4. Update deployment manifest with new image tag (from CI)
-      - name: Update Deployment Image
-        run: |
-          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/ats-matcher:latest
-          sed -i "s|image: .*ats-matcher.*|image: $IMAGE|" k8s/deployment.yaml
-          cat k8s/deployment.yaml
-
-      # 5. Deploy to Kubernetes (apply manifests)
+      # 4. Deploy to Kubernetes (apply manifests)
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      # 6. Wait for deployment to be ready (basic check)
+      # 5. Wait for deployment to be ready (basic check)
       - name: Wait for Deployment
         run: |
           kubectl rollout status deployment/ats-matcher --timeout=120s
 
-      # 7. Basic DAST: Check health endpoint
+      # 6. Basic DAST: Check health endpoint
       - name: DAST - Health Check
         run: |
           # Get service external IP (wait up to 5 min)
